@@ -218,11 +218,12 @@ extension JTAppleCalendarView {
         let selectedDates = self.selectedDates
         let data = reloadDelegateDataSource()
         if data.shouldReload {
-            calendarViewLayout.clearCache()
+            calendarViewLayout.invalidateLayout()
             setupMonthInfoAndMap(with: data.configParameters)
+            
             selectedCellData = [:]
         }
-
+        
         // Restore the selected index paths if dates were already selected.
         if !selectedDates.isEmpty {
             calendarViewLayout.delayedExecutionClosure.append {[weak self] in
@@ -231,8 +232,8 @@ extension JTAppleCalendarView {
                 _self.selectDates(selectedDates, triggerSelectionDelegate: false, keepSelectionIfMultiSelectionAllowed: true)
             }
         }
-
-        // Add calendar reload completion 
+        
+        // Add calendar reload completion
         calendarViewLayout.delayedExecutionClosure.append {[weak self] in
             guard let _self = self else { return }
             _self.isReloadDataInProgress = false
@@ -240,6 +241,8 @@ extension JTAppleCalendarView {
             if !_self.generalDelayedExecutionClosure.isEmpty { _self.executeDelayedTasks(.general) }
         }
         calendarViewLayout.reloadWasTriggered = true
+        
+        if !data.shouldReload { calendarViewLayout.shouldClearCacheOnInvalidate = false }
         super.reloadData()
     }
     
@@ -372,13 +375,13 @@ extension JTAppleCalendarView {
             }
         }
     }
-
+    
     func programaticallyDeselectItem(at indexPath: IndexPath, shouldTriggerSelectionDelegate: Bool) {
         if !handleShouldSelectionValueChange(self, action: .shouldDeselect, indexPath: indexPath, selectionType: .programatic) { return }
         deselectItem(at: indexPath, animated: false)
         handleSelectionValueChanged(self, action: .didDeselect, indexPath: indexPath, selectionType: .programatic, shouldTriggerSelectionDelegate: shouldTriggerSelectionDelegate)
     }
-
+    
     func programaticallySelectItem(at indexPath: IndexPath, shouldTriggerSelectionDelegate: Bool) {
         if !handleShouldSelectionValueChange(self, action: .shouldSelect, indexPath: indexPath, selectionType: .programatic) { return }
         selectItem(at: indexPath, animated: false, scrollPosition: [])
@@ -403,7 +406,6 @@ extension JTAppleCalendarView {
                                      extraAddedOffset: extraAddedOffset,
                                      completionHandler: completionHandler)
             }
-            return
         }
         var xOffset: CGFloat = 0
         var yOffset: CGFloat = 0
@@ -415,12 +417,7 @@ extension JTAppleCalendarView {
             } else {
                 fixedScrollSize = frame.width
             }
-
-            var section = contentOffset.x / fixedScrollSize
-            let roundedSection = round(section)
-            if abs(roundedSection - section) < errorDelta { section = roundedSection }
-            section = CGFloat(Int(section))
-
+            let section = CGFloat(Int(contentOffset.x / fixedScrollSize))
             xOffset = (fixedScrollSize * section)
             switch destination {
             case .next:
@@ -451,19 +448,19 @@ extension JTAppleCalendarView {
                 
                 switch destination {
                 case .next:
-                    scrollToHeaderInSection(section + 1, extraAddedOffset: extraAddedOffset, completionHandler: completionHandler)
+                    scrollToHeaderInSection(section + 1, extraAddedOffset: extraAddedOffset)
                 case .previous:
-                    scrollToHeaderInSection(section - 1, extraAddedOffset: extraAddedOffset, completionHandler: completionHandler)
+                    scrollToHeaderInSection(section - 1, extraAddedOffset: extraAddedOffset)
                 case .start:
-                    scrollToHeaderInSection(0, extraAddedOffset: extraAddedOffset, completionHandler: completionHandler)
+                    scrollToHeaderInSection(0, extraAddedOffset: extraAddedOffset)
                 case .end:
-                    scrollToHeaderInSection(numberOfSections(in: self) - 1, extraAddedOffset: extraAddedOffset, completionHandler: completionHandler)
+                    scrollToHeaderInSection(numberOfSections(in: self) - 1, extraAddedOffset: extraAddedOffset)
                 }
                 return
             } else {
                 fixedScrollSize = frame.height
                 let section = CGFloat(Int(contentOffset.y / fixedScrollSize))
-                yOffset = (fixedScrollSize * section) + fixedScrollSize
+                yOffset = (fixedScrollSize * section) + (destination == .previous ? -fixedScrollSize :  fixedScrollSize)
             }
             
             if yOffset <= 0 {
@@ -507,20 +504,20 @@ extension JTAppleCalendarView {
             }
             return
         }
-
+        
         // Set triggereing of delegate on scroll
         self.triggerScrollToDateDelegate = triggerScrollToDateDelegate
-
+        
         // Ensure date is within valid boundary
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         let firstDayOfDate = calendar.date(from: components)!
         if !((firstDayOfDate >= startOfMonthCache!) && (firstDayOfDate <= endOfMonthCache!)) { return }
-
+        
         // Get valid indexPath of date to scroll to
         let retrievedPathsFromDates = pathsFromDates([date])
         if retrievedPathsFromDates.isEmpty { return }
         let sectionIndexPath = pathsFromDates([date])[0]
-
+        
         // Ensure valid scroll position is set
         var position: UICollectionView.ScrollPosition = scrollDirection == .horizontal ? .left : .top
         if !scrollingMode.pagingIsEnabled(),
@@ -535,7 +532,7 @@ extension JTAppleCalendarView {
                 }
             }
         }
-
+        
         var point: CGPoint?
         switch scrollingMode {
         case .stopAtEach, .stopAtEachSection, .stopAtEachCalendarFrame, .nonStopToSection:
