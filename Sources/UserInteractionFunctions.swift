@@ -242,7 +242,7 @@ extension JTAppleCalendarView {
         }
         calendarViewLayout.reloadWasTriggered = true
         
-        if !data.shouldReload { calendarViewLayout.shouldClearCacheOnInvalidate = false }
+//        if !data.shouldReload { calendarViewLayout.shouldClearCacheOnInvalidate = false }
         super.reloadData()
     }
     
